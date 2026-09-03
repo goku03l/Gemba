@@ -1,0 +1,42 @@
+name: Daily event refresh
+
+on:
+  schedule:
+    # 03:30 UTC = 9:00 AM IST. Edit this to change the time.
+    - cron: '30 3 * * *'
+  workflow_dispatch: {}
+    # ^ lets you trigger this manually from the Actions tab to test it,
+    # instead of waiting for tomorrow's scheduled run.
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Fetch new events
+        env:
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CX: ${{ secrets.GOOGLE_CX }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: node scripts/fetch_events.js
+
+      - name: Commit and push if anything changed
+        run: |
+          git config user.name "gemba-bot"
+          git config user.email "actions@github.com"
+          git add data/events.json
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-refresh events $(date -u +%Y-%m-%d)"
+            git push
+          fi

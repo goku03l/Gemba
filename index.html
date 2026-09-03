@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Gemba</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2314181A'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%23E8B930'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2314181A'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%23E8B930'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+<style>
+  :root{
+    --bg:#DFE3DE;
+    --panel:#F6F7F3;
+    --panel-raised:#FFFFFF;
+    --ink:#14181A;
+    --ink-soft:#5D655F;
+    --line:#C7CCC3;
+    --signal:#E8B930;
+    --signal-deep:#B8901E;
+    --steel:#3A5A66;
+    --ok:#3E7A52;
+    --muted:#9AA39C;
+    --danger:#A94A38;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    padding-bottom:96px;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--signal); color:var(--ink);}
+  button{font-family:inherit;}
+
+  header{
+    background:var(--ink);
+    color:var(--bg);
+    padding:20px 18px 0;
+    position:sticky; top:0; z-index:30;
+  }
+  .brandrow{display:flex; align-items:center; justify-content:space-between;}
+  .brand{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:22px;
+    letter-spacing:0.2px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .icon-btn{
+    background:none; border:1px solid #333A36; color:#B8C2BC;
+    width:30px; height:30px; border-radius:7px;
+    font-size:14px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .synced{
+    font-size:11px;
+    color:#9BA69E;
+    text-align:right;
+  }
+  .synced b{color:var(--signal); font-weight:600; display:block;}
+
+  .live-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--steel);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:8px;
+  }
+  .live-card .lt{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14.5px; color:var(--steel);}
+  .live-card .ls{font-size:12.5px; color:var(--ink-soft); margin-top:4px; line-height:1.4;}
+  .live-card .lf{display:flex; gap:10px; margin-top:8px; align-items:center;}
+  .live-card .lf a{font-size:12px; color:var(--steel);}
+  .live-card .lf button{
+    font-size:12px; font-weight:600; color:var(--ink); background:var(--signal);
+    border:none; padding:5px 10px; border-radius:6px; cursor:pointer; margin-left:auto;
+  }
+  .live-status{font-size:12.5px; color:var(--ink-soft); margin:6px 2px 12px;}
+  .live-status.err{color:var(--danger);}
+
+  .andon{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:1px;
+    background:#2A2F2C;
+    margin-top:16px;
+    border-radius:6px;
+    overflow:hidden;
+  }
+  .lamp{
+    background:#1B2022;
+    padding:12px 8px 14px;
+    text-align:center;
+  }
+  .lamp .n{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:26px;
+    line-height:1;
+  }
+  .lamp .l{
+    font-size:11px;
+    color:#9BA69E;
+    margin-top:4px;
+  }
+  .lamp.week .n{color:var(--signal);}
+  .lamp.upcoming .n{color:#8FB4C2;}
+  .lamp.attended .n{color:#7FBE93;}
+
+  .searchwrap{padding:14px 0 12px;}
+  .searchwrap input{
+    width:100%;
+    background:#1B2022;
+    border:1px solid #333A36;
+    color:var(--bg);
+    padding:11px 12px;
+    border-radius:6px;
+    font-size:15px;
+  }
+  .searchwrap input::placeholder{color:#7A8480;}
+  .searchwrap input:focus{outline:none; border-color:var(--signal);}
+
+  .pillrow{
+    display:flex; gap:6px; overflow-x:auto;
+    padding-bottom:14px;
+    scrollbar-width:none;
+  }
+  .pillrow::-webkit-scrollbar{display:none;}
+  .pill{
+    font-size:12.5px;
+    padding:6px 12px;
+    border-radius:16px;
+    border:1px solid #3A413D;
+    color:#B8C2BC;
+    background:transparent;
+    white-space:nowrap;
+    cursor:pointer;
+  }
+  .pill.active{
+    background:var(--signal);
+    border-color:var(--signal);
+    color:var(--ink);
+    font-weight:600;
+  }
+
+  main{max-width:640px; margin:0 auto; padding:16px;}
+
+  .label{
+    font-size:13px;
+    font-weight:600;
+    color:var(--ink-soft);
+    margin:20px 2px 8px;
+  }
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:14px 14px 12px;
+    margin-bottom:10px;
+  }
+  .card.today{border-color:var(--signal-deep); box-shadow:inset 0 0 0 1px var(--signal-deep);}
+  .card.attended{background:var(--panel); opacity:0.75;}
+  .card.past:not(.attended){opacity:0.55;}
+
+  .card-head{display:flex; justify-content:space-between; gap:10px; align-items:flex-start;}
+  .dot{
+    width:8px; height:8px; border-radius:50%;
+    display:inline-block; margin-right:7px; flex:none;
+    position:relative; top:-1px;
+  }
+  .dot.soon{background:var(--signal);}
+  .dot.future{background:var(--steel);}
+  .dot.past{background:var(--muted);}
+  .dot.attended{background:var(--ok);}
+
+  .title{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600;
+    font-size:16px;
+    line-height:1.3;
+    flex:1;
+  }
+  .countdown{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:12px;
+    color:var(--signal-deep);
+    font-weight:600;
+    white-space:nowrap;
+    padding-top:2px;
+  }
+
+  .details{
+    font-size:13px;
+    color:var(--ink-soft);
+    margin-top:8px;
+    padding-left:15px;
+    display:flex; flex-direction:column; gap:2px;
+  }
+  .details .type{
+    display:inline-block;
+    color:var(--steel);
+    font-weight:600;
+    font-size:12px;
+    margin-top:2px;
+  }
+
+  .card-foot{
+    display:flex; align-items:center; gap:10px;
+    margin-top:12px; padding-top:10px;
+    border-top:1px solid var(--line);
+  }
+  .attend-btn{
+    font-size:12.5px; font-weight:600;
+    padding:6px 12px;
+    border-radius:6px;
+    border:1px solid var(--ok);
+    background:transparent;
+    color:var(--ok);
+    cursor:pointer;
+  }
+  .attend-btn.on{background:var(--ok); color:#fff; border-color:var(--ok);}
+  .link-btn{
+    font-size:12.5px;
+    color:var(--steel);
+    text-decoration:none;
+    font-weight:500;
+  }
+  .del-btn{
+    margin-left:auto;
+    font-size:12px;
+    color:var(--danger);
+    background:none; border:none; cursor:pointer;
+  }
+
+  .assoc-card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+    margin-bottom:8px;
+  }
+  .assoc-card .name{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:15px;}
+  .assoc-card .desc{font-size:12.5px; color:var(--ink-soft); margin-top:3px; line-height:1.4;}
+
+  .empty{
+    text-align:center; padding:44px 20px;
+    color:var(--ink-soft); font-size:14px;
+  }
+
+  .callout{
+    background:var(--panel-raised);
+    border:1px solid var(--line);
+    border-left:3px solid var(--steel);
+    border-radius:6px;
+    padding:12px 14px;
+    font-size:12.5px;
+    color:var(--ink-soft);
+    line-height:1.55;
+    margin:16px 2px 4px;
+  }
+  .callout b{color:var(--ink);}
+  .callout .btnrow{display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;}
+  .callout button{
+    font-size:12px; font-weight:600;
+    padding:7px 12px; border-radius:6px;
+    border:1px solid var(--steel);
+    color:var(--steel);
+    background:transparent;
+    cursor:pointer;
+  }
+
+  .fabrow{
+    position:fixed; bottom:18px; left:0; right:0;
+    display:flex; justify-content:center; gap:10px;
+    z-index:30; pointer-events:none;
+  }
+  .fabrow button{pointer-events:auto;}
+  .fab{
+    background:var(--ink); color:var(--bg);
+    border:none; border-radius:24px;
+    padding:13px 20px;
+    font-size:14px; font-weight:600;
+    box-shadow:0 4px 14px rgba(0,0,0,0.25);
+    cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+  }
+  .fab.primary{background:var(--signal); color:var(--ink);}
+
+  .sheet-overlay{
+    display:none; position:fixed; inset:0;
+    background:rgba(15,17,15,0.55);
+    z-index:50; align-items:flex-end;
+  }
+  .sheet-overlay.open{display:flex;}
+  .sheet{
+    background:var(--panel-raised);
+    width:100%; max-width:640px; margin:0 auto;
+    border-radius:14px 14px 0 0;
+    padding:20px 18px 26px;
+    max-height:85vh; overflow-y:auto;
+  }
+  .sheet h2{
+    font-family:'Space Grotesk', sans-serif;
+    font-size:18px; margin-bottom:4px;
+  }
+  .sheet .sub{font-size:12.5px; color:var(--ink-soft); margin-bottom:16px; line-height:1.5;}
+  .field{margin-bottom:12px;}
+  .field label{
+    display:block; font-size:12px; font-weight:600;
+    color:var(--ink-soft); margin-bottom:5px;
+  }
+  .field input, .field select, .field textarea{
+    width:100%; padding:10px;
+    border:1px solid var(--line); border-radius:6px;
+    font-family:inherit; font-size:14px;
+    background:#fff;
+  }
+  .field textarea{min-height:120px; font-family:'IBM Plex Mono', monospace; font-size:12.5px;}
+  .sheet-actions{display:flex; gap:10px; margin-top:10px;}
+  .btn-primary{
+    flex:1; background:var(--ink); color:var(--bg);
+    border:none; padding:12px; border-radius:8px;
+    font-weight:600; font-size:14px; cursor:pointer;
+  }
+  .btn-secondary{
+    background:transparent; color:var(--ink-soft);
+    border:1px solid var(--line); padding:12px 16px;
+    border-radius:8px; font-size:14px; cursor:pointer;
+  }
+  .importmsg{font-size:12px; margin-top:8px; color:var(--ok);}
+</style>
+</head>
+<body>
+<div id="loadingScreen" style="position:fixed; inset:0; background:#14181A; color:#DFE3DE; display:flex; align-items:center; justify-content:center; z-index:100; font-family:'IBM Plex Mono', monospace; font-size:13px;">
+  Starting SQLite engine…
+</div>
+
+
+<header>
+  <div class="brandrow">
+    <div class="brand">Gemba <button class="icon-btn" id="openSettings" title="How auto-refresh works">ⓘ</button></div>
+    <div class="synced">Local data last touched<b id="syncedAt">—</b></div>
+  </div>
+
+  <div class="andon" id="andon"></div>
+
+  <div class="searchwrap">
+    <input type="text" id="searchInput" placeholder="Search events, organizers, cities">
+  </div>
+  <div class="pillrow" id="typeFilters"></div>
+  <div class="pillrow" id="statusFilters" style="padding-bottom:16px;"></div>
+</header>
+
+<main>
+  <div class="label">Live feed <span style="font-weight:400; color:var(--ink-soft);" id="liveTimestamp"></span></div>
+  <div class="live-status" id="liveStatus">Loading today's feed...</div>
+  <div id="liveList"></div>
+
+  <div class="label">Events</div>
+  <div id="eventList"></div>
+
+  <div class="label">Associations &amp; ongoing access</div>
+  <div id="assocList"></div>
+</main>
+
+<div class="fabrow">
+  <button class="fab" id="fabImport">Paste import</button>
+  <button class="fab primary" id="fabRefresh">↻ Check for updates</button>
+</div>
+
+<div class="sheet-overlay" id="addOverlay">
+  <div class="sheet">
+    <h2>Add an event</h2>
+    <div class="sub">Found one manually? Log it here.</div>
+    <div class="field"><label>Name</label><input id="f-name" placeholder="e.g. TANSTIA Cluster Meet"></div>
+    <div class="field"><label>Date</label><input id="f-date" type="date"></div>
+    <div class="field"><label>Location</label><input id="f-loc" placeholder="e.g. Chennai Trade Centre"></div>
+    <div class="field"><label>Organizer</label><input id="f-org" placeholder="e.g. TANSTIA"></div>
+    <div class="field">
+      <label>Type</label>
+      <select id="f-type">
+        <option value="Expo">Expo</option>
+        <option value="Association">Association</option>
+        <option value="Government">Government</option>
+        <option value="Startup">Startup networking</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="field"><label>Link (optional)</label><input id="f-link" placeholder="https://..."></div>
+    <div class="sheet-actions">
+      <button class="btn-secondary" id="cancelAdd">Cancel</button>
+      <button class="btn-primary" id="saveAdd">Save event</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="settingsOverlay">
+  <div class="sheet">
+    <h2>How auto-refresh works</h2>
+    <div class="sub">
+      A scheduled job runs on GitHub every day — no tap, no open app required. It searches the web with a key that's stored as a secret, never in this page, saves results into this site's data file, and the site redeploys itself automatically.<br><br>
+      <b>To change what it searches for:</b> edit <code>data/queries.json</code> in the GitHub repo — one query per line, no code needed.<br><br>
+      <b>To get a Telegram ping the moment new events are found:</b> message <code>@BotFather</code> on Telegram, create a bot, then add its token and your chat ID as repo secrets (<code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_CHAT_ID</code>). Ask Claude if you want the exact steps.<br><br>
+      This feed refreshes once a day. "Check for updates" below just re-reads today's file — it doesn't run a new search itself.
+    </div>
+    <div class="sheet-actions">
+      <button class="btn-primary" id="cancelSettings">Got it</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="importOverlay">
+  <div class="sheet">
+    <h2>Import a batch</h2>
+    <div class="sub">Ask Claude to search for new events, then paste what it gives you here. Expected format is a JSON array — Claude knows this shape.</div>
+    <div class="field">
+      <textarea id="importBox" placeholder='[{"name":"...", "date":"2026-11-20", "loc":"...", "org":"...", "type":"Expo", "link":""}]'></textarea>
+    </div>
+    <div class="importmsg" id="importMsg"></div>
+    <div class="sheet-actions">
+      <button class="btn-secondary" id="cancelImport">Cancel</button>
+      <button class="btn-primary" id="doImport">Merge into list</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SEED_EVENTS = [
+  {id:'s1', name:'WAREMAT – TOPACK – AUTOROBOT – COSLOG – WS-AUTX 2026', date:'2026-07-30', loc:'Chennai Trade Centre, Nandambakkam', org:'Midas Touch Events & Trade Fairs', type:'Expo', link:'', seed:1, dateApprox:0},
+  {id:'s2', name:'Bharat MSME Expo', date:'2026-07-24', loc:'Chennai', org:'Bharat MSME Expo', type:'Expo', link:'', seed:1, dateApprox:0},
+  {id:'s3', name:'HEF Tamil Nadu State Conference', date:'2026-07-11', loc:'IITM Research Park, Chennai', org:'HEF (25 TN chapters)', type:'Association', link:'https://www.heftn.com/', seed:1, dateApprox:0},
+  {id:'s4', name:'StartupTN MSME Mahotsav', date:'2026-06-27', loc:'ICAI Bhawan, Nungambakkam, Chennai', org:'ICAI & StartupTN', type:'Government', link:'', seed:1, dateApprox:0},
+  {id:'s5', name:'Automation Expo Chennai', date:'2026-03-12', loc:'Chennai Trade Centre', org:'IED Communications Ltd.', type:'Expo', link:'', seed:1, dateApprox:0},
+  {id:'s6', name:'Automation Expo South (3rd regional edition)', date:'2026-03-12', loc:'Chennai Trade Centre', org:'Automation Expo series', type:'Expo', link:'', seed:1, dateApprox:0},
+  {id:'s7', name:'India AI Impact Summit — MSME Manufacturing session', date:'2026-02-18', loc:'New Delhi', org:'MeitY / Ministry of MSME', type:'Government', link:'', seed:1, dateApprox:0},
+  {id:'s8', name:'Windergy India 2026', date:'2026-10-07', loc:'Chennai', org:'Windergy India', type:'Expo', link:'', seed:1, dateApprox:0},
+  {id:'s9', name:'Global Startups Club — monthly meetup', date:'2026-09-18', loc:'Chennai (venue varies)', org:'3X Events & Mojo Startup', type:'Startup', link:'', seed:1, dateApprox:0},
+  {id:'s10', name:'Festival of Manufacturing — 4th edition', date:'2026-11-15', loc:'Chennai', org:'The Times Group', type:'Expo', link:'https://festivalofmanufacturing.in/', seed:1, dateApprox:1},
+];
+
+const ASSOCIATIONS = [
+  {name:'TANSTIA', desc:'Tamil Nadu Small and Tiny Industries Association — MSME manufacturer-focused, state-wide. Best channel for recurring shop-floor access.'},
+  {name:'CII Tamil Nadu', desc:'SME-focused programs, active in the AI-for-manufacturing-MSME policy push.'},
+  {name:'CIIA Chennai', desc:'Chennai chamber, present at recent MSME expo inaugurations alongside TANSTIA.'},
+  {name:'FICCI Tamil Nadu', desc:'Broader industry body with an active MSME track.'},
+  {name:'ACMA', desc:'Auto Component Manufacturers Association — relevant if you narrow to the auto-ancillary vertical.'},
+  {name:'StartupTN', desc:'Tamil Nadu state startup mission, runs recurring MSME events. chennaimetrohub@startuptn.in'},
+];
+
+let db, SQL;
+const DB_KEY = 'gemba_sqlite_v1';
+
+let activeType = 'All';
+let activeStatus = 'All';
+let searchTerm = '';
+const TYPES = ['All','Expo','Association','Government','Startup','Other'];
+const STATUSES = ['All','Upcoming','Past','Attended'];
+
+function escapeHtml(s){
+  return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function daysUntil(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const t = new Date(new Date().toISOString().slice(0,10) + 'T00:00:00');
+  return Math.round((d - t) / 86400000);
+}
+function touch(){
+  const now = new Date().toLocaleString('en-IN', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+  localStorage.setItem('gemba_last_touched', now);
+  document.getElementById('syncedAt').textContent = now;
+  persistDb();
+}
+
+function persistDb(){
+  const data = db.export();
+  let binary = '';
+  data.forEach(b => binary += String.fromCharCode(b));
+  localStorage.setItem(DB_KEY, btoa(binary));
+}
+
+function run(sql, params){ db.run(sql, params || []); }
+function queryAll(sql, params){
+  const stmt = db.prepare(sql);
+  if (params) stmt.bind(params);
+  const rows = [];
+  while (stmt.step()) rows.push(stmt.getAsObject());
+  stmt.free();
+  return rows;
+}
+function queryOne(sql, params){
+  const rows = queryAll(sql, params);
+  return rows.length ? rows[0] : null;
+}
+
+async function initDb(){
+  SQL = await initSqlJs({ locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${f}` });
+
+  const saved = localStorage.getItem(DB_KEY);
+  if (saved){
+    const raw = atob(saved);
+    const buf = new Uint8Array(raw.length);
+    for (let i = 0; i < raw.length; i++) buf[i] = raw.charCodeAt(i);
+    db = new SQL.Database(buf);
+  } else {
+    db = new SQL.Database();
+    run(`CREATE TABLE events (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      date TEXT NOT NULL,
+      loc TEXT,
+      org TEXT,
+      type TEXT,
+      link TEXT,
+      seed INTEGER DEFAULT 0,
+      dateApprox INTEGER DEFAULT 0,
+      attended INTEGER DEFAULT 0
+    )`);
+
+    // migrate any data from the old localStorage-JSON version, if present
+    const oldEvents = JSON.parse(localStorage.getItem('gemba_events') || 'null');
+    const oldAttended = JSON.parse(localStorage.getItem('gemba_attended') || '{}');
+    const src = oldEvents && oldEvents.length ? oldEvents : SEED_EVENTS;
+
+    src.forEach(e => {
+      run(`INSERT OR IGNORE INTO events (id,name,date,loc,org,type,link,seed,dateApprox,attended) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+        [e.id, e.name, e.date, e.loc||'TBC', e.org||'TBC', e.type||'Other', e.link||'',
+         e.seed ? 1 : 0, e.dateApprox ? 1 : 0, (oldAttended[e.id] || e.attended) ? 1 : 0]);
+    });
+    persistDb();
+  }
+}
+
+function renderFilters(){
+  const tWrap = document.getElementById('typeFilters');
+  tWrap.innerHTML = TYPES.map(t => `<button class="pill ${t===activeType?'active':''}" data-type="${t}">${t}</button>`).join('');
+  tWrap.querySelectorAll('.pill').forEach(b => b.onclick = () => { activeType = b.dataset.type; render(); });
+
+  const sWrap = document.getElementById('statusFilters');
+  sWrap.innerHTML = STATUSES.map(s => `<button class="pill ${s===activeStatus?'active':''}" data-status="${s}">${s}</button>`).join('');
+  sWrap.querySelectorAll('.pill').forEach(b => b.onclick = () => { activeStatus = b.dataset.status; render(); });
+}
+
+function renderAndon(){
+  const week = queryOne(`SELECT COUNT(*) c FROM events WHERE date >= date('now') AND date <= date('now','+7 days')`).c;
+  const upcoming = queryOne(`SELECT COUNT(*) c FROM events WHERE date >= date('now')`).c;
+  const att = queryOne(`SELECT COUNT(*) c FROM events WHERE attended = 1`).c;
+  document.getElementById('andon').innerHTML = `
+    <div class="lamp week"><div class="n">${week}</div><div class="l">this week</div></div>
+    <div class="lamp upcoming"><div class="n">${upcoming}</div><div class="l">upcoming</div></div>
+    <div class="lamp attended"><div class="n">${att}</div><div class="l">attended</div></div>
+  `;
+}
+
+function render(){
+  renderAndon();
+  const list = document.getElementById('eventList');
+
+  let sql = 'SELECT * FROM events WHERE 1=1';
+  const params = [];
+  if (activeType !== 'All'){ sql += ' AND type = ?'; params.push(activeType); }
+  if (activeStatus === 'Upcoming') sql += ` AND date >= date('now')`;
+  if (activeStatus === 'Past') sql += ` AND date < date('now')`;
+  if (activeStatus === 'Attended') sql += ' AND attended = 1';
+  if (searchTerm){
+    sql += ' AND (lower(name) LIKE ? OR lower(org) LIKE ? OR lower(loc) LIKE ?)';
+    const t = '%' + searchTerm.toLowerCase() + '%';
+    params.push(t, t, t);
+  }
+  sql += ' ORDER BY date ASC';
+
+  const rows = queryAll(sql, params);
+
+  if (rows.length === 0){
+    list.innerHTML = `<div class="empty">Nothing matches. Try clearing a filter, or add what you've found.</div>`;
+    return;
+  }
+
+  list.innerHTML = rows.map(e => {
+    const du = daysUntil(e.date);
+    const isPast = du < 0;
+    const isAttended = !!e.attended;
+    let dotClass = isAttended ? 'attended' : (isPast ? 'past' : (du <= 14 ? 'soon' : 'future'));
+    let countdown = isPast ? 'past' : (du === 0 ? 'today' : `${du}d away`);
+    const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
+
+    return `
+      <div class="card ${isAttended?'attended':''} ${isPast?'past':''} ${du===0?'today':''}">
+        <div class="card-head">
+          <div class="title"><span class="dot ${dotClass}"></span>${escapeHtml(e.name)}</div>
+          <div class="countdown">${countdown}</div>
+        </div>
+        <div class="details">
+          <div>${dateLabel}${e.dateApprox ? ' — approx, confirm with organizer' : ''}</div>
+          <div>${escapeHtml(e.loc)}</div>
+          <div>${escapeHtml(e.org)}</div>
+          <div class="type">${e.type}</div>
+        </div>
+        <div class="card-foot">
+          <button class="attend-btn ${isAttended?'on':''}" data-id="${e.id}">${isAttended ? 'Attended' : 'Mark attended'}</button>
+          ${e.link ? `<a class="link-btn" href="${e.link}" target="_blank" rel="noopener">Details</a>` : ''}
+          ${!e.seed ? `<button class="del-btn" data-del="${e.id}">Remove</button>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+
+  list.querySelectorAll('.attend-btn').forEach(b => b.onclick = () => {
+    const row = queryOne('SELECT attended FROM events WHERE id = ?', [b.dataset.id]);
+    run('UPDATE events SET attended = ? WHERE id = ?', [row.attended ? 0 : 1, b.dataset.id]);
+    touch(); render();
+  });
+  list.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    run('DELETE FROM events WHERE id = ? AND seed = 0', [b.dataset.del]);
+    touch(); render();
+  });
+}
+
+function renderAssoc(){
+  document.getElementById('assocList').innerHTML = ASSOCIATIONS.map(a => `
+    <div class="assoc-card">
+      <div class="name">${escapeHtml(a.name)}</div>
+      <div class="desc">${escapeHtml(a.desc)}</div>
+    </div>`).join('');
+}
+
+document.getElementById('searchInput').addEventListener('input', e => { searchTerm = e.target.value; render(); });
+
+const addOverlay = document.getElementById('addOverlay');
+document.getElementById('fabAdd') && (document.getElementById('fabAdd').onclick = () => addOverlay.classList.add('open'));
+document.getElementById('cancelAdd').onclick = () => addOverlay.classList.remove('open');
+document.getElementById('saveAdd').onclick = () => {
+  const name = document.getElementById('f-name').value.trim();
+  const date = document.getElementById('f-date').value;
+  if (!name || !date){ alert('Name and date are required.'); return; }
+  const id = 'u' + Date.now();
+  run(`INSERT INTO events (id,name,date,loc,org,type,link,seed,dateApprox,attended) VALUES (?,?,?,?,?,?,?,0,0,0)`,
+    [id, name, date,
+     document.getElementById('f-loc').value.trim() || 'TBC',
+     document.getElementById('f-org').value.trim() || 'TBC',
+     document.getElementById('f-type').value,
+     document.getElementById('f-link').value.trim()]);
+  ['f-name','f-date','f-loc','f-org','f-link'].forEach(fid => document.getElementById(fid).value = '');
+  addOverlay.classList.remove('open');
+  touch(); render();
+};
+
+const importOverlay = document.getElementById('importOverlay');
+document.getElementById('fabImport').onclick = () => importOverlay.classList.add('open');
+document.getElementById('cancelImport').onclick = () => importOverlay.classList.remove('open');
+document.getElementById('doImport').onclick = () => {
+  const msg = document.getElementById('importMsg');
+  try {
+    const raw = JSON.parse(document.getElementById('importBox').value);
+    if (!Array.isArray(raw)) throw new Error('not an array');
+    let added = 0;
+    raw.forEach(item => {
+      if (!item.name || !item.date) return;
+      const dup = queryOne('SELECT id FROM events WHERE name = ? AND date = ?', [item.name, item.date]);
+      if (dup) return;
+      const id = 'i' + Date.now() + Math.random().toString(36).slice(2,6);
+      run(`INSERT INTO events (id,name,date,loc,org,type,link,seed,dateApprox,attended) VALUES (?,?,?,?,?,?,?,0,0,0)`,
+        [id, item.name, item.date, item.loc || 'TBC', item.org || 'TBC', item.type || 'Other', item.link || '']);
+      added++;
+    });
+    msg.style.color = 'var(--ok)';
+    msg.textContent = `Added ${added} new event(s), skipped duplicates.`;
+    touch(); render();
+    setTimeout(() => { importOverlay.classList.remove('open'); document.getElementById('importBox').value=''; msg.textContent=''; }, 1400);
+  } catch(e){
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Could not read that — make sure it\'s a valid JSON array.';
+  }
+};
+
+const settingsOverlay = document.getElementById('settingsOverlay');
+document.getElementById('openSettings').onclick = () => settingsOverlay.classList.add('open');
+document.getElementById('cancelSettings').onclick = () => settingsOverlay.classList.remove('open');
+
+let liveItems = [];
+
+function renderLiveList(){
+  const wrap = document.getElementById('liveList');
+  if (!liveItems.length){
+    wrap.innerHTML = '';
+    return;
+  }
+  wrap.innerHTML = liveItems.map((r,i) => `
+    <div class="live-card">
+      <div class="lt">${escapeHtml(r.title)}</div>
+      <div class="ls">${escapeHtml(r.snippet || '')}</div>
+      <div class="lf">
+        <a href="${r.link}" target="_blank" rel="noopener">Open</a>
+        <button data-promote="${i}">Add to tracked list</button>
+      </div>
+    </div>`).join('');
+  wrap.querySelectorAll('[data-promote]').forEach(b => b.onclick = () => {
+    const r = liveItems[b.dataset.promote];
+    document.getElementById('f-name').value = r.title;
+    document.getElementById('f-link').value = r.link;
+    addOverlay.classList.add('open');
+  });
+}
+
+async function loadLiveFeed(){
+  const status = document.getElementById('liveStatus');
+  status.className = 'live-status';
+  status.textContent = 'Loading today\'s feed...';
+  try {
+    // cache-bust so a same-day redeploy isn't served from the browser cache
+    const res = await fetch('./data/events.json?t=' + Date.now());
+    if (!res.ok) throw new Error('data file not found');
+    const store = await res.json();
+    liveItems = store.items || [];
+    const trackedLinks = new Set(queryAll('SELECT link FROM events WHERE link != ""').map(r => r.link));
+    liveItems = liveItems.filter(r => !trackedLinks.has(r.link)).slice(-20).reverse();
+
+    if (store.lastUpdated){
+      const d = new Date(store.lastUpdated);
+      document.getElementById('liveTimestamp').textContent = '— auto-updated ' + d.toLocaleString('en-IN', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    } else {
+      document.getElementById('liveTimestamp').textContent = '— no run yet';
+    }
+    status.textContent = liveItems.length
+      ? `${liveItems.length} result(s) waiting for review. Add anything worth tracking.`
+      : 'Up to date — nothing new since your last check.';
+    renderLiveList();
+  } catch(e){
+    status.className = 'live-status err';
+    status.textContent = 'Could not load the feed file. If you just deployed, the first Action run hasn\'t landed yet.';
+  }
+}
+
+document.getElementById('fabRefresh').onclick = loadLiveFeed;
+
+async function main(){
+  await initDb();
+  document.getElementById('syncedAt').textContent = localStorage.getItem('gemba_last_touched') || 'just now';
+  renderFilters();
+  renderAssoc();
+  render();
+  await loadLiveFeed();
+  document.getElementById('loadingScreen').style.display = 'none';
+}
+main();
+</script>
+</body>
+</html>
