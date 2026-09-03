@@ -4,8 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Gemba</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<meta name="theme-color" content="#14181A">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Gemba">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2314181A'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%23E8B930'/%3E%3C/svg%3E">
-<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%2314181A'/%3E%3Ccircle cx='50' cy='50' r='22' fill='%23E8B930'/%3E%3C/svg%3E">
+<link rel="apple-touch-icon" href="./icon-192.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
@@ -407,8 +413,18 @@
       A scheduled job runs on GitHub every day — no tap, no open app required. It searches the web with a key that's stored as a secret, never in this page, saves results into this site's data file, and the site redeploys itself automatically.<br><br>
       <b>To change what it searches for:</b> edit <code>data/queries.json</code> in the GitHub repo — one query per line, no code needed.<br><br>
       <b>To get a Telegram ping the moment new events are found:</b> message <code>@BotFather</code> on Telegram, create a bot, then add its token and your chat ID as repo secrets (<code>TELEGRAM_BOT_TOKEN</code>, <code>TELEGRAM_CHAT_ID</code>). Ask Claude if you want the exact steps.<br><br>
-      This feed refreshes once a day. "Check for updates" below just re-reads today's file — it doesn't run a new search itself.
+      This feed refreshes twice a day at most. "Check for updates" below just re-reads today's file — it doesn't run a new search itself.
     </div>
+
+    <div class="field" style="border-top:1px solid var(--line); padding-top:14px;">
+      <label>Phone notifications</label>
+      <div class="sub" style="margin-bottom:10px;">
+        Install Gemba to your home screen, then turn this on to get a notification when new results land — checked in the background on supported phones, and every time you open the app.
+      </div>
+      <button class="btn-secondary" id="enableNotifs" style="width:100%;">Enable notifications</button>
+      <div class="importmsg" id="notifMsg" style="color:var(--ink-soft);"></div>
+    </div>
+
     <div class="sheet-actions">
       <button class="btn-primary" id="cancelSettings">Got it</button>
     </div>
@@ -706,8 +722,70 @@ document.getElementById('doImport').onclick = () => {
 };
 
 const settingsOverlay = document.getElementById('settingsOverlay');
-document.getElementById('openSettings').onclick = () => settingsOverlay.classList.add('open');
+document.getElementById('openSettings').onclick = () => { updateNotifUI(); settingsOverlay.classList.add('open'); };
 document.getElementById('cancelSettings').onclick = () => settingsOverlay.classList.remove('open');
+
+// ---- PWA install + background notifications ----
+let swReg = null;
+const notifsSupported = ('Notification' in window) && ('serviceWorker' in navigator);
+
+async function registerSW(){
+  if (!('serviceWorker' in navigator)) return;
+  try { swReg = await navigator.serviceWorker.register('./sw.js'); }
+  catch(e){ console.warn('Service worker registration failed:', e); }
+}
+
+function updateNotifUI(){
+  const btn = document.getElementById('enableNotifs');
+  const msg = document.getElementById('notifMsg');
+  if (!btn) return;
+  if (!notifsSupported){
+    btn.disabled = true; btn.textContent = 'Not supported on this browser'; msg.textContent = '';
+    return;
+  }
+  if (Notification.permission === 'granted'){
+    btn.disabled = true; btn.textContent = 'Notifications on';
+    msg.textContent = 'You’ll get a ping when new results appear.';
+  } else if (Notification.permission === 'denied'){
+    btn.disabled = true; btn.textContent = 'Blocked in browser settings';
+    msg.textContent = 'Turn notifications back on for this site in your browser, then reopen Gemba.';
+  } else {
+    btn.disabled = false; btn.textContent = 'Enable notifications'; msg.textContent = '';
+  }
+}
+
+async function registerPeriodicSync(){
+  if (!swReg || !('periodicSync' in swReg)) return;
+  try {
+    const status = await navigator.permissions.query({ name: 'periodic-background-sync' });
+    if (status.state === 'granted'){
+      await swReg.periodicSync.register('gemba-refresh', { minInterval: 12 * 60 * 60 * 1000 });
+    }
+  } catch(e){ /* unsupported — the on-open check below still runs */ }
+}
+
+function triggerBackgroundCheck(){
+  navigator.serviceWorker?.controller?.postMessage({ type: 'check-events' });
+}
+
+async function enableNotifs(){
+  const msg = document.getElementById('notifMsg');
+  try {
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted'){
+      await registerPeriodicSync();
+      triggerBackgroundCheck();
+      if (swReg) swReg.showNotification('Gemba notifications on', {
+        body: 'New results will show up like this.', icon: './icon-192.png', tag: 'gemba-hello'
+      });
+    }
+  } catch(e){
+    if (msg){ msg.style.color = 'var(--danger)'; msg.textContent = 'Could not enable notifications.'; }
+  }
+  updateNotifUI();
+}
+
+document.getElementById('enableNotifs') && (document.getElementById('enableNotifs').onclick = enableNotifs);
 
 let liveItems = [];
 
@@ -773,6 +851,13 @@ async function main(){
   render();
   await loadLiveFeed();
   document.getElementById('loadingScreen').style.display = 'none';
+
+  await registerSW();
+  updateNotifUI();
+  if (notifsSupported && Notification.permission === 'granted'){
+    await registerPeriodicSync();
+    triggerBackgroundCheck();
+  }
 }
 main();
 </script>

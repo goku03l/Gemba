@@ -1,0 +1,16 @@
+{
+  "name": "Gemba — MSME event tracker",
+  "short_name": "Gemba",
+  "description": "Tracks Tamil Nadu / MSME manufacturing events and surfaces new ones daily.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#14181A",
+  "theme_color": "#14181A",
+  "icons": [
+    { "src": "./icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
