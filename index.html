@@ -47,7 +47,9 @@
     color:var(--bg);
     padding:20px 18px 0;
     position:sticky; top:0; z-index:30;
+    transition:padding .25s ease;
   }
+  header.condensed{padding-top:10px;}
   .brandrow{display:flex; align-items:center; justify-content:space-between;}
   .brand{
     font-family:'Space Grotesk', sans-serif;
@@ -55,7 +57,10 @@
     font-size:22px;
     letter-spacing:0.2px;
     display:flex; align-items:center; gap:10px;
+    transition:font-size .25s ease;
   }
+  header.condensed .brand{font-size:17px;}
+  header.condensed .synced{display:none;}
   .icon-btn{
     background:none; border:1px solid #333A36; color:#B8C2BC;
     width:30px; height:30px; border-radius:7px;
@@ -96,7 +101,10 @@
     margin-top:16px;
     border-radius:6px;
     overflow:hidden;
+    max-height:200px;
+    transition:max-height .25s ease, opacity .2s ease, margin .25s ease;
   }
+  header.condensed .andon{max-height:0; opacity:0; margin-top:0;}
   .lamp{
     background:#1B2022;
     padding:12px 8px 14px;
@@ -117,7 +125,13 @@
   .lamp.upcoming .n{color:#8FB4C2;}
   .lamp.attended .n{color:#7FBE93;}
 
-  .searchwrap{padding:14px 0 12px;}
+  .searchwrap{
+    padding:14px 0 12px;
+    max-height:120px;
+    overflow:hidden;
+    transition:max-height .25s ease, opacity .2s ease, padding .25s ease;
+  }
+  header.condensed .searchwrap{max-height:0; opacity:0; padding:0;}
   .searchwrap input{
     width:100%;
     background:#1B2022;
@@ -134,8 +148,11 @@
     display:flex; gap:6px; overflow-x:auto;
     padding-bottom:14px;
     scrollbar-width:none;
+    transition:padding-bottom .25s ease;
   }
   .pillrow::-webkit-scrollbar{display:none;}
+  header.condensed .pillrow{padding-bottom:6px;}
+  header.condensed #statusFilters{padding-bottom:12px !important;}
   .pill{
     font-size:12.5px;
     padding:6px 12px;
@@ -145,7 +162,9 @@
     background:transparent;
     white-space:nowrap;
     cursor:pointer;
+    transition:padding .25s ease, font-size .25s ease;
   }
+  header.condensed .pill{font-size:12px; padding:4px 10px;}
   .pill.active{
     background:var(--signal);
     border-color:var(--signal);
@@ -795,6 +814,22 @@ async function enableNotifs(){
 }
 
 document.getElementById('enableNotifs') && (document.getElementById('enableNotifs').onclick = enableNotifs);
+
+// Collapse the header (andon + search) once you scroll into the list, so the
+// sticky filter bar stops eating the screen. Hysteresis avoids flicker.
+(function(){
+  const header = document.querySelector('header');
+  let condensed = false, ticking = false;
+  function apply(){
+    const y = window.scrollY;
+    if (!condensed && y > 90){ condensed = true; header.classList.add('condensed'); }
+    else if (condensed && y < 40){ condensed = false; header.classList.remove('condensed'); }
+    ticking = false;
+  }
+  window.addEventListener('scroll', () => {
+    if (!ticking){ requestAnimationFrame(apply); ticking = true; }
+  }, { passive: true });
+})();
 
 let liveItems = [];
 
