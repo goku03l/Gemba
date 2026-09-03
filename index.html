@@ -633,13 +633,14 @@ function render(){
     let countdown = isPast ? 'past' : (du === 0 ? 'today' : `${du}d away`);
     const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
 
-    // Always give a way to look the event up: saved link if we have one,
-    // otherwise a web search for the name + organizer.
-    const hasLink = !!e.link;
-    const refUrl = hasLink
+    // Every card gets a "Details" button that carries you elsewhere:
+    // the saved link when we have one, otherwise a targeted web search
+    // (name + organizer + city + year) so you land on the real page.
+    const year = (e.date || '').slice(0, 4);
+    const refUrl = e.link
       ? e.link
-      : 'https://www.google.com/search?q=' + encodeURIComponent([e.name, e.org, e.loc].filter(v => v && v !== 'TBC').join(' '));
-    const refLabel = hasLink ? 'Details' : 'Look up';
+      : 'https://www.google.com/search?q=' + encodeURIComponent([e.name, e.org, e.loc, year].filter(v => v && v !== 'TBC').join(' '));
+    const refLabel = 'Details';
 
     return `
       <div class="card ${isAttended?'attended':''} ${isPast?'past':''} ${du===0?'today':''}">
