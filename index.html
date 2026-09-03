@@ -633,6 +633,14 @@ function render(){
     let countdown = isPast ? 'past' : (du === 0 ? 'today' : `${du}d away`);
     const dateLabel = new Date(e.date + 'T00:00:00').toLocaleDateString('en-IN', {day:'numeric', month:'short', year:'numeric'});
 
+    // Always give a way to look the event up: saved link if we have one,
+    // otherwise a web search for the name + organizer.
+    const hasLink = !!e.link;
+    const refUrl = hasLink
+      ? e.link
+      : 'https://www.google.com/search?q=' + encodeURIComponent([e.name, e.org, e.loc].filter(v => v && v !== 'TBC').join(' '));
+    const refLabel = hasLink ? 'Details' : 'Look up';
+
     return `
       <div class="card ${isAttended?'attended':''} ${isPast?'past':''} ${du===0?'today':''}">
         <div class="card-head">
@@ -647,7 +655,7 @@ function render(){
         </div>
         <div class="card-foot">
           <button class="attend-btn ${isAttended?'on':''}" data-id="${e.id}">${isAttended ? 'Attended' : 'Mark attended'}</button>
-          ${e.link ? `<a class="link-btn" href="${e.link}" target="_blank" rel="noopener">Details</a>` : ''}
+          <a class="link-btn" href="${refUrl}" target="_blank" rel="noopener">${refLabel}</a>
           ${!e.seed ? `<button class="del-btn" data-del="${e.id}">Remove</button>` : ''}
         </div>
       </div>`;
