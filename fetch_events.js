@@ -1,9 +1,15 @@
 // Runs inside GitHub Actions on a schedule. Not run in the browser.
 // Calls Google Custom Search with secrets that never touch the client,
 // writes results into data/events.json, and pings Telegram if configured.
+//
+// Hard stop: at most MAX_RUNS_PER_DAY actual searches per calendar day (UTC).
+// The count lives in data/events.json, so manual re-runs from the Actions tab
+// can't blow past the daily cap.
 
 const fs = require('fs');
 const path = require('path');
+
+const MAX_RUNS_PER_DAY = 2;
 
 const API_KEY = process.env.GOOGLE_API_KEY;
 const CX = process.env.GOOGLE_CX;
@@ -21,6 +27,20 @@ async function main() {
 
   const queries = JSON.parse(fs.readFileSync(queriesPath, 'utf8'));
   const store = JSON.parse(fs.readFileSync(eventsPath, 'utf8'));
+
+  // Enforce the daily run cap.
+  const today = new Date().toISOString().slice(0, 10);
+  if (store.runDate !== today) {
+    store.runDate = today;
+    store.runCount = 0;
+  }
+  if ((store.runCount || 0) >= MAX_RUNS_PER_DAY) {
+    console.log(`Hard stop: already ran ${store.runCount} time(s) on ${today} (max ${MAX_RUNS_PER_DAY}). Nothing fetched.`);
+    return;
+  }
+  store.runCount = (store.runCount || 0) + 1;
+  console.log(`Run ${store.runCount} of ${MAX_RUNS_PER_DAY} for ${today}.`);
+
   const existingLinks = new Set(store.items.map(e => e.link));
 
   const found = [];
