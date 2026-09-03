@@ -353,6 +353,7 @@
     <input type="text" id="searchInput" placeholder="Search events, organizers, cities">
   </div>
   <div class="pillrow" id="typeFilters"></div>
+  <div class="pillrow" id="locFilters"></div>
   <div class="pillrow" id="statusFilters" style="padding-bottom:16px;"></div>
 </header>
 
@@ -457,9 +458,20 @@ const DB_KEY = 'gemba_sqlite_v1';
 
 let activeType = 'All';
 let activeStatus = 'All';
+let activeLoc = 'All';
 let searchTerm = '';
 const TYPES = ['All','Expo','Association','Government','Startup','Other'];
 const STATUSES = ['All','Upcoming','Past','Attended'];
+
+// Map a free-text location string to a canonical city bucket for filtering.
+function cityOf(loc){
+  const l = (loc || '').toLowerCase();
+  if (l.includes('new delhi') || l.includes('delhi')) return 'New Delhi';
+  if (l.includes('bengaluru') || l.includes('bangalore')) return 'Bengaluru';
+  const cities = ['Chennai','Coimbatore','Madurai','Trichy','Tiruchirappalli','Hosur','Mumbai','Pune','Hyderabad','Kolkata','Ahmedabad'];
+  for (const c of cities){ if (l.includes(c.toLowerCase())) return c; }
+  return 'Other';
+}
 
 function escapeHtml(s){
   return (s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -543,6 +555,21 @@ function renderFilters(){
   const sWrap = document.getElementById('statusFilters');
   sWrap.innerHTML = STATUSES.map(s => `<button class="pill ${s===activeStatus?'active':''}" data-status="${s}">${s}</button>`).join('');
   sWrap.querySelectorAll('.pill').forEach(b => b.onclick = () => { activeStatus = b.dataset.status; render(); });
+
+  renderLocFilters();
+}
+
+// Location pills are built from the cities actually present in the data.
+function renderLocFilters(){
+  const buckets = new Set(queryAll('SELECT DISTINCT loc FROM events').map(r => cityOf(r.loc)));
+  const ordered = Array.from(buckets).sort((a,b) =>
+    a === 'Other' ? 1 : b === 'Other' ? -1 : a.localeCompare(b));
+  const locs = ['All', ...ordered];
+  if (!locs.includes(activeLoc)) activeLoc = 'All';
+
+  const wrap = document.getElementById('locFilters');
+  wrap.innerHTML = locs.map(l => `<button class="pill ${l===activeLoc?'active':''}" data-loc="${l}">${l}</button>`).join('');
+  wrap.querySelectorAll('.pill').forEach(b => b.onclick = () => { activeLoc = b.dataset.loc; render(); });
 }
 
 function renderAndon(){
@@ -558,6 +585,7 @@ function renderAndon(){
 
 function render(){
   renderAndon();
+  renderLocFilters();
   const list = document.getElementById('eventList');
 
   let sql = 'SELECT * FROM events WHERE 1=1';
@@ -573,7 +601,8 @@ function render(){
   }
   sql += ' ORDER BY date ASC';
 
-  const rows = queryAll(sql, params);
+  let rows = queryAll(sql, params);
+  if (activeLoc !== 'All') rows = rows.filter(e => cityOf(e.loc) === activeLoc);
 
   if (rows.length === 0){
     list.innerHTML = `<div class="empty">Nothing matches. Try clearing a filter, or add what you've found.</div>`;
